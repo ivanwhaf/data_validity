@@ -45,27 +45,48 @@ class OnlineEnsemble(object):
             outputs_lst.append(outs)
         return outputs_lst
 
-    def sort_and_resample(self, outputs, scores, batch_size, lower_ratio, upper_ratio):
+    def sort_and_resample(self, outputs, scores, n, lower_ratio, upper_ratio):
         """
+        根据分数对当前批次数据重采样
 
         :param outputs: 网络的输出（当前批数据）
         :param scores: 当前批数据的分数，为一个列表，索引要和outputs一一对应
-        :param batch_size: 当前批数据的大小
-        :param lower_ratio:
-        :param upper_ratio:
-        :return:
+        :param n: 当前批数据的大小
+        :param lower_ratio: 重采样下界的比例，如去除scores较低的5%数据，lower_ratio应为0.05
+        :param upper_ratio: 重采样上界的比例，如去除scores较高的5%数据，lower_ratio应为0.95
+        :return: 返回重采样后的网络outputs
         """
         indices = np.argsort(scores)
-        lower_bound = int(batch_size * lower_ratio)
-        upper_bound = int(batch_size * upper_ratio)
+        lower_bound = int(n * lower_ratio)
+        upper_bound = int(n * upper_ratio)
         indices = indices[lower_bound:upper_bound]
         outputs = outputs[indices]
         return outputs
 
-    def sort_and_reweight(self, outputs, scores):
-        # 根据分数对当前批次数据重加权
-        # 返回重加权的权重
+    def sort_and_reweight(self, outputs, scores, n, lower_ratio, upper_ratio):
+        """
+        根据分数对当前批次数据重加权
+
+        :param outputs: 网络的输出（当前批数据）
+        :param scores: 当前批数据的分数，为一个列表，索引要和outputs一一对应
+        :param n: 当前批数据的大小
+        :param lower_ratio: 重加权的下界的比例，如去除scores较低的5%数据，lower_ratio应为0.05
+        :param upper_ratio: 重加权的上界的比例，如去除scores较高的5%数据，lower_ratio应为0.95
+        :return: 返回重采样后的网络outputs及重加权的权重
+        """
         indices = np.argsort(scores)
-        weights = np.array(len(scores))
+        lower_bound = int(n * lower_ratio)
+        upper_bound = int(n * upper_ratio)
+        indices = indices[lower_bound:upper_bound]
+        outputs = outputs[indices]
+
+        diff1 = int(lower_bound / 10)
+        diff2 = int((n - upper_bound) / 10)
+
+        # 线性加权：权重从0.0递增至0.9（从scores两端向内）
+        weights = np.ones(len(scores))
+        for i in range(10):
+            weights[i * diff1:(i + 1) * diff1] = 0.1 * i
+            weights[n - (i + 1) * diff2:n - i * diff2] = 0.1 * i
 
         return outputs, weights
